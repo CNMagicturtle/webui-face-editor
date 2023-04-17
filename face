@@ -17,10 +17,83 @@ from PIL import Image
 from torchvision.transforms.functional import normalize
 
 
-# ... (略去其他部分，未做更改)
+class Face:
+    def __init__(self, entire_image: np.ndarray, face_box: np.ndarray, face_margin: float):
+        left, top, right, bottom = self.__to_square(face_box)
+
+        self.left, self.top, self.right, self.bottom = self.__ensure_margin(
+            left, top, right, bottom, entire_image, face_margin)
+
+        self.width = self.right - self.left
+        self.height = self.bottom - self.top
+
+        self.image = self.__crop_face_image(entire_image)
+
+    def __crop_face_image(self, entire_image: np.ndarray):
+        cropped = entire_image[self.top: self.bottom, self.left: self.right, :]
+        return Image.fromarray(
+            cv2.resize(cropped, dsize=(512, 512)))
+
+    def __to_square(self, face_box: np.ndarray):
+        left, top, right, bottom, *_ = list(map(int, face_box))
+
+        width = right - left
+        height = bottom - top
+
+        if width % 2 == 1:
+            right = right + 1
+            width = width + 1
+        if height % 2 == 1:
+            bottom = bottom + 1
+            height = height + 1
+
+        diff = int(abs(width - height) / 2)
+        if width > height:
+            top = top - diff
+            bottom = bottom + diff
+        else:
+            left = left - diff
+            right = right + diff
+
+        return left, top, right, bottom
+
+    def __ensure_margin(self, left: int, top: int, right: int, bottom: int, entire_image: np.ndarray, margin: float):
+        entire_height, entire_width = entire_image.shape[:2]
+
+        side_length = right - left
+        margin = min(min(entire_height, entire_width) /
+                     side_length, margin)
+        diff = int((side_length * margin - side_length) / 2)
+
+        top = top - diff
+        bottom = bottom + diff
+        left = left - diff
+        right = right + diff
+
+        if top < 0:
+            bottom = bottom - top
+            top = 0
+        if left < 0:
+            right = right - left
+            left = 0
+
+        if bottom > entire_height:
+            top = top - (bottom - entire_height)
+            bottom = entire_height
+        if right > entire_width:
+            left = left - (right - entire_width)
+            right = entire_width
+
+        return left, top, right, bottom
+
+
 
 class BatchScript(scripts.Script):
-    # ... (略去其他部分，未做更改)
+    def title(self):
+        return "Face Editor (Batch)"
+
+    def show(self, is_img2img):
+        return True
 
     def ui(self, is_img2img):
         max_face_count = gr.Slider(
